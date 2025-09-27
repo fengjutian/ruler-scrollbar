@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ruler-scrollbar demo (0–100)</title>
+    <style>
+      html, body { margin: 0; height: 100%; font-family: system-ui, Arial, Helvetica, sans-serif; }
+      body { background: #fafafa; }
+      .note { position: fixed; left: 50%; transform: translateX(-50%); top: 10px; background: rgba(255,255,255,0.95); padding: 6px 10px; border-radius: 6px; border: 1px solid #eee; z-index: 20000; }
+      .controls { position: fixed; right: 12px; top: 12px; z-index: 20001; background: rgba(255,255,255,0.95); padding: 10px 12px; border: 1px solid #e5e5e5; border-radius: 8px; width: 280px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+      .controls h3 { margin: 0 0 8px; font-size: 14px; color: #333; }
+      .row { display: flex; align-items: center; margin: 8px 0; gap: 8px; }
+      .row label { width: 120px; font-size: 12px; color: #555; }
+      .row input[type="range"] { flex: 1; }
+      .row input[type="number"] { width: 80px; }
+      .info { font-size: 12px; color: #666; margin-top: 6px; }
+
+      /* 将每个内容区高度设置为“相对视口的百分比”（body/html 100%） */
+      .section { height: 100%; margin: 24px; border-radius: 8px; border: 1px dashed #ddd; background: repeating-linear-gradient(180deg,#fff 0,#fff 90px,#f3f3f3 90px,#f3f3f3 100px); }
+      .section:nth-child(odd) { background: repeating-linear-gradient(180deg,#fdfdfd 0,#fdfdfd 90px,#f0f0f0 90px,#f0f0f0 100px); }
+    </style>
+  </head>
+  <body>
+    <div class="note">右侧：整页滚动标尺（归一化 0–100）</div>
+
+    <div class="controls">
+      <h3>刻度设置</h3>
+      <div class="row">
+        <label for="units">每格单位 (unitsPerMinor)</label>
+        <input id="units" type="range" min="0.5" max="10" step="0.5" value="2" />
+        <input id="unitsNum" type="number" min="0.5" max="10" step="0.5" value="2" />
+      </div>
+      <div class="row">
+        <label for="major">主刻度间隔 (单位)</label>
+        <input id="major" type="range" min="2" max="25" step="1" value="10" />
+        <input id="majorNum" type="number" min="2" max="25" step="1" value="10" />
+      </div>
+      <div class="info" id="info">计算中…</div>
+    </div>
+
+    <div class="section"></div>
+    <div class="section"></div>
+    <div class="section"></div>
+
+    <script type="module">
+      import { installRulerScrollbar } from '../dist/index.mjs';
+
+      // 初始化实例（不在这里传入归一化相关选项）
+      const ruler = installRulerScrollbar(document.body, {
+        position: 'right',
+        width: 36,
+        numberColor: '#444',
+        tickColor: '#777',
+        background: 'rgba(240,240,240,0.6)'
+      });
+
+      // 目标：整页高度 = 100%，并可调“每格单位/主刻度间隔”
+      const state = { unitsPerMinor: 2, majorEveryUnits: 10 };
+      if (typeof ruler.useFullPageAs100 === 'function') {
+        ruler.useFullPageAs100({
+          unitsPerMinor: state.unitsPerMinor,
+          majorEveryUnits: state.majorEveryUnits,
+        });
+      } else {
+        // 降级：使用现有 setter 组合实现相同效果
+        if (typeof ruler.setScaleMode === 'function') ruler.setScaleMode('normalized');
+        if (typeof ruler.setScaleMax === 'function') ruler.setScaleMax(100);
+        if (typeof ruler.setUnitsPerMinor === 'function') ruler.setUnitsPerMinor(state.unitsPerMinor);
+        if (typeof ruler.setMajorEveryUnits === 'function') ruler.setMajorEveryUnits(state.majorEveryUnits);
+      }
+
+      // 控件联动与信息展示（百分比 + 每格像素估算）
+      const $units = document.getElementById('units');
+      const $unitsNum = document.getElementById('unitsNum');
+      const $major = document.getElementById('major');
+      const $majorNum = document.getElementById('majorNum');
+      const $info = document.getElementById('info');
+
+      function updateInfo() {
+        const totalHeightPx = Math.max(document.documentElement.scrollHeight, window.innerHeight);
+        const viewportPx = window.innerHeight;
+        const totalPercent = (totalHeightPx / viewportPx) * 100; // 整页高度（相对视口的百分比）
+        const pxPerUnit = totalHeightPx / 100; // scaleMax 固定 100
+        const minorPx = Math.round(state.unitsPerMinor * pxPerUnit);
+        $info.textContent = `总高≈${totalPercent.toFixed(0)}%（${totalHeightPx}px） | 每单位≈${pxPerUnit.toFixed(2)}px | 每格≈${minorPx}px`;
+      }
+
+      function linkRangeNumber(rangeEl, numberEl, onChange) {
+        rangeEl.addEventListener('input', () => { numberEl.value = rangeEl.value; onChange(Number(rangeEl.value)); });
+        numberEl.addEventListener('input', () => { rangeEl.value = numberEl.value; onChange(Number(numberEl.value)); });
+      }
+
+      linkRangeNumber($units, $unitsNum, (v) => {
+        state.unitsPerMinor = Math.max(0.5, Math.min(10, v));
+        if (typeof ruler.setUnitsPerMinor === 'function') ruler.setUnitsPerMinor(state.unitsPerMinor);
+        updateInfo();
+      });
+
+      linkRangeNumber($major, $majorNum, (v) => {
+        state.majorEveryUnits = Math.max(2, Math.min(25, Math.round(v)));
+        if (typeof ruler.setMajorEveryUnits === 'function') ruler.setMajorEveryUnits(state.majorEveryUnits);
+        updateInfo();
+      });
+
+      updateInfo();
+    </script>
+  </body>
+</html>

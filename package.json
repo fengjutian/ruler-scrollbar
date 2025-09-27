@@ -1,0 +1,36 @@
+{
+  "name": "ruler-scrollbar",
+  "version": "1.0.0",
+  "description": "Replace native scrollbar with a vertical ruler that shows ticks and numbers as you scroll.",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "test": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourname/ruler-scrollbar.git"
+  },
+  "keywords": [
+    "scrollbar",
+    "ruler",
+    "plugin",
+    "ui",
+    "typescript"
+  ],
+  "author": "Your Name <you@example.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yourname/ruler-scrollbar/issues"
+  },
+  "homepage": "https://github.com/yourname/ruler-scrollbar#readme",
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "jsdom": "^24.1.3",
+    "tsup": "^7.2.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.6.1"
+  }
+}
