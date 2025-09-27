@@ -47,29 +47,21 @@
     <script type="module">
       import { installRulerScrollbar } from '../dist/index.mjs';
 
-      // 初始化实例（不在这里传入归一化相关选项）
+      // 初始化实例（加载完成后再归一化 0–100）
       const ruler = installRulerScrollbar(document.body, {
         position: 'right',
+        fullPageAs100AfterLoad: true,
         width: 36,
         numberColor: '#444',
         tickColor: '#777',
-        background: 'rgba(240,240,240,0.6)'
+        background: 'rgba(240,240,240,0.6)',
+        // 在归一化模式生效后使用这些参数
+        unitsPerMinor: 2,
+        majorEveryUnits: 10,
       });
 
-      // 目标：整页高度 = 100%，并可调“每格单位/主刻度间隔”
+      // 仅保留状态给控制面板使用
       const state = { unitsPerMinor: 2, majorEveryUnits: 10 };
-      if (typeof ruler.useFullPageAs100 === 'function') {
-        ruler.useFullPageAs100({
-          unitsPerMinor: state.unitsPerMinor,
-          majorEveryUnits: state.majorEveryUnits,
-        });
-      } else {
-        // 降级：使用现有 setter 组合实现相同效果
-        if (typeof ruler.setScaleMode === 'function') ruler.setScaleMode('normalized');
-        if (typeof ruler.setScaleMax === 'function') ruler.setScaleMax(100);
-        if (typeof ruler.setUnitsPerMinor === 'function') ruler.setUnitsPerMinor(state.unitsPerMinor);
-        if (typeof ruler.setMajorEveryUnits === 'function') ruler.setMajorEveryUnits(state.majorEveryUnits);
-      }
 
       // 控件联动与信息展示（百分比 + 每格像素估算）
       const $units = document.getElementById('units');
@@ -104,7 +96,9 @@
         updateInfo();
       });
 
+      // 初始化时先计算一次，window load 后再刷新一次
       updateInfo();
+      window.addEventListener('load', () => updateInfo(), { once: true });
     </script>
   </body>
 </html>

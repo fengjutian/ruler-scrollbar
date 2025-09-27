@@ -9,6 +9,11 @@ interface RulerOptions {
     hideNative?: boolean;
     zIndex?: number;
     background?: string;
+    scaleMode?: 'pixel' | 'normalized';
+    scaleMax?: number;
+    unitsPerMinor?: number;
+    majorEveryUnits?: number;
+    fullPageAs100AfterLoad?: boolean;
 }
 declare class RulerScrollbar {
     private target;
@@ -28,6 +33,14 @@ declare class RulerScrollbar {
     private getScrollTop;
     private getClientHeight;
     private draw;
+    useFullPageAs100(config?: {
+        unitsPerMinor?: number;
+        majorEveryUnits?: number;
+    }): void;
+    setUnitsPerMinor(units: number): void;
+    setMajorEveryUnits(units: number): void;
+    setScaleMode(mode: 'pixel' | 'normalized'): void;
+    setTickSpacing(px: number): void;
 }
 declare function installRulerScrollbar(target?: Element | null, options?: RulerOptions): RulerScrollbar;
 

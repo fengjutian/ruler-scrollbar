@@ -38,7 +38,12 @@ var DEFAULTS = {
   showNumbers: true,
   hideNative: true,
   zIndex: 1e4,
-  background: "transparent"
+  background: "transparent",
+  scaleMode: "normalized",
+  scaleMax: 100,
+  unitsPerMinor: 1,
+  majorEveryUnits: 10,
+  fullPageAs100AfterLoad: false
 };
 function ensureHideNativeStyleOnce() {
   const id = "ruler-scrollbar-hide-style";
@@ -111,6 +116,14 @@ var RulerScrollbar = class {
     this._attach();
     this.resizeCanvasToHost();
     this.draw();
+    if (this.hostIsWindow && this.opts.fullPageAs100AfterLoad) {
+      const apply = () => this.useFullPageAs100();
+      if (document.readyState === "complete") {
+        apply();
+      } else {
+        window.addEventListener("load", apply, { once: true });
+      }
+    }
   }
   destroy() {
     this._detach();
@@ -177,32 +190,127 @@ var RulerScrollbar = class {
       ctx.fillStyle = this.opts.background;
       ctx.fillRect(0, 0, width, clientHeight);
     }
-    const minorPx = this.opts.tickSpacing;
-    const majorEvery = this.opts.majorEvery;
-    const visibleStart = Math.floor(scrollTop);
-    const visibleEnd = Math.ceil(scrollTop + clientHeight);
-    const firstTick = Math.floor(visibleStart / minorPx) * minorPx;
-    ctx.strokeStyle = this.opts.tickColor;
-    ctx.lineWidth = 1;
-    for (let s = firstTick; s <= visibleEnd; s += minorPx) {
-      const y = s - scrollTop;
-      const isMajor = Math.round(s / minorPx) % majorEvery === 0;
-      const length = isMajor ? Math.floor(width * 0.35) : Math.floor(width * 0.18);
-      ctx.beginPath();
-      const xStart = this.opts.position === "left" ? width - length - 4 : 4;
-      const xEnd = this.opts.position === "left" ? width - 4 : length + 4;
-      ctx.moveTo(xStart, y + 0.5);
-      ctx.lineTo(xEnd, y + 0.5);
-      ctx.stroke();
-      if (isMajor && this.opts.showNumbers) {
-        ctx.font = "11px system-ui, Arial, Helvetica, sans-serif";
-        ctx.fillStyle = this.opts.numberColor;
-        const label = String(s);
-        const tx = this.opts.position === "left" ? 8 : width - 8;
-        ctx.textBaseline = "middle";
-        ctx.textAlign = this.opts.position === "left" ? "left" : "right";
-        ctx.fillText(label, tx, y);
+    if (this.opts.scaleMode === "normalized") {
+      const totalHeight = this.hostIsWindow ? Math.max(document.documentElement.scrollHeight, clientHeight) : Math.max(this.target.scrollHeight, clientHeight);
+      const scaleMax = Math.max(1, this.opts.scaleMax);
+      const pxPerUnit = totalHeight > 0 ? totalHeight / scaleMax : 1;
+      const unitsPerMinor = Math.max(1e-3, this.opts.unitsPerMinor);
+      const minorPx = unitsPerMinor * pxPerUnit;
+      const majorEveryUnits = Math.max(1, this.opts.majorEveryUnits);
+      const visibleStart = Math.floor(scrollTop);
+      const visibleEnd = Math.min(Math.ceil(scrollTop + clientHeight), totalHeight);
+      const firstTick = Math.floor(visibleStart / minorPx) * minorPx;
+      ctx.strokeStyle = this.opts.tickColor;
+      ctx.lineWidth = 1;
+      for (let s = firstTick; s <= visibleEnd; s += minorPx) {
+        const y = s - scrollTop;
+        const valueUnits = s / pxPerUnit;
+        const roundedUnits = Math.round(valueUnits);
+        const isMajor = roundedUnits % majorEveryUnits === 0;
+        const length = isMajor ? Math.floor(width * 0.35) : Math.floor(width * 0.18);
+        ctx.beginPath();
+        const xStart = this.opts.position === "left" ? width - length - 4 : 4;
+        const xEnd = this.opts.position === "left" ? width - 4 : length + 4;
+        ctx.moveTo(xStart, y + 0.5);
+        ctx.lineTo(xEnd, y + 0.5);
+        ctx.stroke();
+        if (isMajor && this.opts.showNumbers) {
+          const clamped = Math.max(0, Math.min(scaleMax, roundedUnits));
+          ctx.font = "11px system-ui, Arial, Helvetica, sans-serif";
+          ctx.fillStyle = this.opts.numberColor;
+          const label = String(clamped);
+          const tx = this.opts.position === "left" ? 8 : width - 8;
+          ctx.textBaseline = "middle";
+          ctx.textAlign = this.opts.position === "left" ? "left" : "right";
+          ctx.fillText(label, tx, y);
+        }
       }
+    } else {
+      const minorPx = this.opts.tickSpacing;
+      const majorEvery = this.opts.majorEvery;
+      const visibleStart = Math.floor(scrollTop);
+      const visibleEnd = Math.ceil(scrollTop + clientHeight);
+      const firstTick = Math.floor(visibleStart / minorPx) * minorPx;
+      ctx.strokeStyle = this.opts.tickColor;
+      ctx.lineWidth = 1;
+      for (let s = firstTick; s <= visibleEnd; s += minorPx) {
+        const y = s - scrollTop;
+        const isMajor = Math.round(s / minorPx) % majorEvery === 0;
+        const length = isMajor ? Math.floor(width * 0.35) : Math.floor(width * 0.18);
+        ctx.beginPath();
+        const xStart = this.opts.position === "left" ? width - length - 4 : 4;
+        const xEnd = this.opts.position === "left" ? width - 4 : length + 4;
+        ctx.moveTo(xStart, y + 0.5);
+        ctx.lineTo(xEnd, y + 0.5);
+        ctx.stroke();
+        if (isMajor && this.opts.showNumbers) {
+          ctx.font = "11px system-ui, Arial, Helvetica, sans-serif";
+          ctx.fillStyle = this.opts.numberColor;
+          const label = String(s);
+          const tx = this.opts.position === "left" ? 8 : width - 8;
+          ctx.textBaseline = "middle";
+          ctx.textAlign = this.opts.position === "left" ? "left" : "right";
+          ctx.fillText(label, tx, y);
+        }
+      }
+    }
+  }
+  // 运行时：切换归一化总刻度（整页 0..100 等）
+  useFullPageAs100(config) {
+    let changed = false;
+    if (this.opts.scaleMode !== "normalized") {
+      this.opts.scaleMode = "normalized";
+      changed = true;
+    }
+    if (this.opts.scaleMax !== 100) {
+      this.opts.scaleMax = 100;
+      changed = true;
+    }
+    if (config && typeof config.unitsPerMinor === "number") {
+      const v = Math.max(1e-3, config.unitsPerMinor);
+      if (this.opts.unitsPerMinor !== v) {
+        this.opts.unitsPerMinor = v;
+        changed = true;
+      }
+    }
+    if (config && typeof config.majorEveryUnits === "number") {
+      const v = Math.max(1, Math.round(config.majorEveryUnits));
+      if (this.opts.majorEveryUnits !== v) {
+        this.opts.majorEveryUnits = v;
+        changed = true;
+      }
+    }
+    this.draw();
+  }
+  // 运行时：调整每个小格代表的单位数（归一化模式下影响“每一格”的像素间距）
+  setUnitsPerMinor(units) {
+    const safe = Math.max(1e-3, units);
+    if (this.opts.unitsPerMinor !== safe) {
+      this.opts.unitsPerMinor = safe;
+      this.draw();
+    }
+  }
+  // 运行时：设置多少单位出现一次主刻度
+  setMajorEveryUnits(units) {
+    const safe = Math.max(1, Math.round(units));
+    if (this.opts.majorEveryUnits !== safe) {
+      this.opts.majorEveryUnits = safe;
+      this.draw();
+    }
+  }
+  // 运行时：切换刻度模式（像素/归一化）
+  setScaleMode(mode) {
+    if (this.opts.scaleMode !== mode) {
+      this.opts.scaleMode = mode;
+      this.draw();
+    }
+  }
+  // 运行时：像素模式下调整每个小格像素间距
+  setTickSpacing(px) {
+    const safe = Math.max(1, Math.round(px));
+    if (this.opts.tickSpacing !== safe) {
+      this.opts.tickSpacing = safe;
+      this.draw();
     }
   }
 };

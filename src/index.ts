@@ -13,6 +13,7 @@ export interface RulerOptions {
   scaleMax?: number;           // 归一化时的最大刻度，默认 100
   unitsPerMinor?: number;      // 每个小格代表的单位数，默认 1（影响格子间距）
   majorEveryUnits?: number;    // 多少单位绘制一条主刻度，默认 10
+  fullPageAs100AfterLoad?: boolean; // 页面加载完后将整页映射为 0..100
 }
 
 const DEFAULTS: Required<RulerOptions> = {
@@ -30,6 +31,7 @@ const DEFAULTS: Required<RulerOptions> = {
   scaleMax: 100,
   unitsPerMinor: 1,
   majorEveryUnits: 10,
+  fullPageAs100AfterLoad: false,
 };
 
 function ensureHideNativeStyleOnce(): void {
@@ -112,6 +114,16 @@ export class RulerScrollbar {
     // Initial layout
     this.resizeCanvasToHost();
     this.draw();
+
+    // 页面完全加载后，计算总高度并将整页设置为 0..100
+    if (this.hostIsWindow && this.opts.fullPageAs100AfterLoad) {
+      const apply = () => this.useFullPageAs100();
+      if (document.readyState === 'complete') {
+        apply();
+      } else {
+        window.addEventListener('load', apply, { once: true });
+      }
+    }
   }
 
   public destroy(): void {
